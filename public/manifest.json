@@ -1,0 +1,19 @@
+{
+  "name": "Habbit",
+  "short_name": "Habbit",
+  "description": "Трекер привычек. Строй лучшую версию себя.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f5f4f0",
+  "theme_color": "#f5f4f0",
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
