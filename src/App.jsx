@@ -217,11 +217,18 @@ function AddSheet({ onClose, onAdd, existingCategories }) {
         </>
       )}
 
-      <button onClick={submit} style={{
-        width:"100%",padding:"16px",borderRadius:16,
-        background:accent,border:"none",cursor:"pointer",
-        fontSize:16,fontFamily:"'Nunito',sans-serif",fontWeight:800,color:"#1a1a1a"
-      }}>+ Add</button>
+      <div style={{display:"flex",gap:10}}>
+        <button onClick={onClose} style={{
+          flex:1,padding:"16px",borderRadius:16,
+          background:"#f2f2f2",border:"none",cursor:"pointer",
+          fontSize:16,fontFamily:"'Nunito',sans-serif",fontWeight:800,color:"#999"
+        }}>Cancel</button>
+        <button onClick={submit} style={{
+          flex:2,padding:"16px",borderRadius:16,
+          background:accent,border:"none",cursor:"pointer",
+          fontSize:16,fontFamily:"'Nunito',sans-serif",fontWeight:800,color:"#1a1a1a"
+        }}>+ Add</button>
+      </div>
     </Sheet>
   );
 }
@@ -352,8 +359,29 @@ const inputSt = {
   outline:"none",marginBottom:16,boxSizing:"border-box"
 };
 
+// ── DRAG HANDLE ───────────────────────────────────────────────────────────────
+function DragHandle({ onDown }) {
+  return (
+    <div
+      onClick={e => e.stopPropagation()}
+      onPointerDown={e => { e.stopPropagation(); e.preventDefault(); onDown(e); }}
+      style={{ touchAction:"none", cursor:"grab", flexShrink:0, padding:"4px 2px",
+        display:"flex", alignItems:"center", userSelect:"none" }}
+    >
+      <svg width="12" height="14" viewBox="0 0 12 14" fill="none">
+        <circle cx="4" cy="3"  r="1.5" fill="#d0d0d0"/>
+        <circle cx="8" cy="3"  r="1.5" fill="#d0d0d0"/>
+        <circle cx="4" cy="7"  r="1.5" fill="#d0d0d0"/>
+        <circle cx="8" cy="7"  r="1.5" fill="#d0d0d0"/>
+        <circle cx="4" cy="11" r="1.5" fill="#d0d0d0"/>
+        <circle cx="8" cy="11" r="1.5" fill="#d0d0d0"/>
+      </svg>
+    </div>
+  );
+}
+
 // ── HABIT CARD (today) ────────────────────────────────────────────────────────
-function HabitCard({ habit, onToggle, onIncrement, onDecrement }) {
+function HabitCard({ habit, onToggle, onIncrement, onDecrement, onDragHandleDown }) {
   const isReminder = habit.type === "reminder";
   const isQuit     = habit.type === "quit";
   const isQ        = habit.target > 1 && !isQuit;
@@ -394,6 +422,7 @@ function HabitCard({ habit, onToggle, onIncrement, onDecrement }) {
               {isDone ? "Noted ✓" : "Tap to acknowledge"}
             </span>
           </div>
+          {onDragHandleDown && <DragHandle onDown={onDragHandleDown}/>}
         </div>
       </div>
     );
@@ -482,6 +511,7 @@ function HabitCard({ habit, onToggle, onIncrement, onDecrement }) {
             </span>
           </div>
         )}
+        {onDragHandleDown && <DragHandle onDown={onDragHandleDown}/>}
       </div>
     </div>
   );
@@ -782,8 +812,64 @@ export default function App() {
   const [tab, setTab]             = useState("today");
   const [period, setPeriod]       = useState("week");
   const [collapsed, setCollapsed] = useState({});
+  const [dragId, setDragId]       = useState(null);
+  const [dragOverId, setDragOverId] = useState(null);
+  const dragIdRef = useRef(null);
 
   const toggleSection = key => setCollapsed(p => ({...p, [key]: !p[key]}));
+
+  const reorderHabit = (fromId, toId) => {
+    if (!fromId || !toId || fromId === toId) return;
+    setHabits(h => {
+      const arr = [...h];
+      const fi = arr.findIndex(x => x.id === fromId);
+      const ti = arr.findIndex(x => x.id === toId);
+      if (fi < 0 || ti < 0) return h;
+      arr.splice(ti, 0, arr.splice(fi, 1)[0]);
+      return arr;
+    });
+  };
+
+  const startDrag = (e, id) => {
+    e.preventDefault();
+    dragIdRef.current = id;
+    setDragId(id);
+
+    const findTarget = (clientY) => {
+      const cards = document.querySelectorAll('[data-hid]');
+      let best = null, bestDist = Infinity;
+      cards.forEach(card => {
+        const hid = Number(card.dataset.hid);
+        if (hid === dragIdRef.current) return;
+        const { top, bottom } = card.getBoundingClientRect();
+        const dist = Math.abs(clientY - (top + bottom) / 2);
+        if (dist < bestDist) { bestDist = dist; best = hid; }
+      });
+      return best;
+    };
+
+    const onMove = (e) => {
+      const y = e.touches ? e.touches[0].clientY : e.clientY;
+      setDragOverId(findTarget(y));
+    };
+
+    const onUp = (e) => {
+      const y = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
+      reorderHabit(dragIdRef.current, findTarget(y));
+      dragIdRef.current = null;
+      setDragId(null);
+      setDragOverId(null);
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.removeEventListener('touchend', onUp);
+    };
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('mouseup', onUp);
+    document.addEventListener('touchend', onUp);
+  };
 
   useEffect(() => { saveHabits(habits); }, [habits]);
 
@@ -979,8 +1065,14 @@ export default function App() {
                           </span>
                         </div>
                         {!isCollapsed && catHabits.map((h,i)=>(
-                          <div key={h.id} className="card" style={{animationDelay:`${i*0.04}s`}}>
-                            <HabitCard habit={h} onToggle={toggle} onIncrement={increment} onDecrement={decrement}/>
+                          <div key={h.id} data-hid={h.id} className="card" style={{
+                            animationDelay:`${i*0.04}s`,
+                            opacity: dragId===h.id ? 0.4 : 1,
+                            outline: dragOverId===h.id ? `2px solid ${COLORS[h.color%COLORS.length].bg}` : "none",
+                            borderRadius:18, transition:"opacity 0.15s"
+                          }}>
+                            <HabitCard habit={h} onToggle={toggle} onIncrement={increment} onDecrement={decrement}
+                              onDragHandleDown={e=>startDrag(e,h.id)}/>
                           </div>
                         ))}
                       </div>
@@ -1008,8 +1100,14 @@ export default function App() {
                         </span>
                       </div>
                       {!isCollapsed && quit.map((h,i)=>(
-                        <div key={h.id} className="card" style={{animationDelay:`${i*0.04}s`}}>
-                          <HabitCard habit={h} onToggle={toggle} onIncrement={increment} onDecrement={decrement}/>
+                        <div key={h.id} data-hid={h.id} className="card" style={{
+                          animationDelay:`${i*0.04}s`,
+                          opacity: dragId===h.id ? 0.4 : 1,
+                          outline: dragOverId===h.id ? `2px solid ${COLORS[h.color%COLORS.length].bg}` : "none",
+                          borderRadius:18, transition:"opacity 0.15s"
+                        }}>
+                          <HabitCard habit={h} onToggle={toggle} onIncrement={increment} onDecrement={decrement}
+                            onDragHandleDown={e=>startDrag(e,h.id)}/>
                         </div>
                       ))}
                     </div>
@@ -1037,8 +1135,14 @@ export default function App() {
                           </span>
                         </div>
                         {!isCollapsed && catHabits.map((h,i)=>(
-                          <div key={h.id} className="card" style={{animationDelay:`${i*0.04}s`}}>
-                            <HabitCard habit={h} onToggle={toggle} onIncrement={increment} onDecrement={decrement}/>
+                          <div key={h.id} data-hid={h.id} className="card" style={{
+                            animationDelay:`${i*0.04}s`,
+                            opacity: dragId===h.id ? 0.4 : 1,
+                            outline: dragOverId===h.id ? `2px solid ${COLORS[h.color%COLORS.length].bg}` : "none",
+                            borderRadius:18, transition:"opacity 0.15s"
+                          }}>
+                            <HabitCard habit={h} onToggle={toggle} onIncrement={increment} onDecrement={decrement}
+                              onDragHandleDown={e=>startDrag(e,h.id)}/>
                           </div>
                         ))}
                       </div>
@@ -1065,8 +1169,14 @@ export default function App() {
                         </span>
                       </div>
                       {!isCollapsed && reminders.map((h,i)=>(
-                        <div key={h.id} className="card" style={{animationDelay:`${i*0.04}s`}}>
-                          <HabitCard habit={h} onToggle={toggle} onIncrement={increment} onDecrement={decrement}/>
+                        <div key={h.id} data-hid={h.id} className="card" style={{
+                          animationDelay:`${i*0.04}s`,
+                          opacity: dragId===h.id ? 0.4 : 1,
+                          outline: dragOverId===h.id ? `2px solid ${COLORS[h.color%COLORS.length].bg}` : "none",
+                          borderRadius:18, transition:"opacity 0.15s"
+                        }}>
+                          <HabitCard habit={h} onToggle={toggle} onIncrement={increment} onDecrement={decrement}
+                            onDragHandleDown={e=>startDrag(e,h.id)}/>
                         </div>
                       ))}
                     </div>
