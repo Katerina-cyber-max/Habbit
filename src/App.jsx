@@ -365,14 +365,14 @@ function HabitCard({ habit, onToggle, onIncrement, onDecrement }) {
 
   if (isReminder) {
     return (
-      <div style={{
+      <div onClick={()=>onToggle(habit.id)} style={{
         background: isDone ? c.bg+"22" : "#fff",
         border:`1.5px solid ${isDone ? c.bg : "#f0f0f0"}`,
         borderRadius:18, padding:"15px 16px", marginBottom:10,
-        transition:"all 0.25s ease",
+        transition:"all 0.25s ease", cursor:"pointer",
       }}>
         <div style={{display:"flex",alignItems:"center",gap:13}}>
-          <div onClick={()=>onToggle(habit.id)} style={{
+          <div style={{
             width:30, height:30, borderRadius:8,
             border:`2.5px solid ${isDone ? c.bg : "#e0e0e0"}`,
             background: isDone ? c.bg : "#fff",
@@ -405,15 +405,15 @@ function HabitCard({ habit, onToggle, onIncrement, onDecrement }) {
   };
 
   return (
-    <div style={{
+    <div onClick={handleTap} style={{
       background: isDone ? c.bg+"22" : "#fff",
       border:`1.5px solid ${isDone ? c.bg : "#f0f0f0"}`,
       borderRadius:18, padding:"15px 16px", marginBottom:10,
-      transition:"all 0.25s ease",
+      transition:"all 0.25s ease", cursor:"pointer",
     }}>
       <div style={{display:"flex",alignItems:"center",gap:13}}>
         {/* Button */}
-        <div onClick={handleTap} style={{
+        <div style={{
           width:30, height:30,
           borderRadius: isQuit ? 8 : "50%",
           border:`2.5px solid ${isDone ? c.bg : "#e0e0e0"}`,
@@ -453,7 +453,7 @@ function HabitCard({ habit, onToggle, onIncrement, onDecrement }) {
                   {habit.done} / {habit.target} {habit.unit}
                 </span>
                 {habit.done > 0 && (
-                  <button onClick={()=>onDecrement(habit.id)} style={{
+                  <button onClick={e=>{e.stopPropagation();onDecrement(habit.id);}} style={{
                     background:"#f0f0f0",border:"none",borderRadius:8,
                     width:22,height:22,cursor:"pointer",fontSize:14,
                     display:"flex",alignItems:"center",justifyContent:"center",
