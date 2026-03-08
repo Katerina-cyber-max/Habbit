@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 
 // ── PALETTE ──────────────────────────────────────────────────────────────────
 const COLORS = [
@@ -16,40 +16,43 @@ const COLORS = [
 // quit: success = day without doing the bad habit
 // project: grouped under a named project/category
 
-// ── MOCK HISTORY (last 28 days, per habit) ───────────────────────────────────
-function genHistory(habitId, streak) {
-  const h = {};
-  const base = new Date(); base.setHours(0,0,0,0);
-  for (let i = 27; i >= 0; i--) {
-    const d = new Date(base); d.setDate(d.getDate() - i);
-    const key = d.toISOString().slice(0,10);
-    // simulate: done on most recent `streak` days, scattered before
-    if (i < streak) h[key] = true;
-    else h[key] = Math.random() > 0.55;
-  }
-  return h;
+// ── PERSISTENCE ───────────────────────────────────────────────────────────────
+const STORAGE_KEY = 'habbit_habits';
+const DATE_KEY    = 'habbit_date';
+
+function loadHabits() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const habits = JSON.parse(raw);
+    // New day → reset today's progress
+    const lastDate = localStorage.getItem(DATE_KEY);
+    if (lastDate !== todayKey) {
+      localStorage.setItem(DATE_KEY, todayKey);
+      return habits.map(h => ({ ...h, done: 0 }));
+    }
+    return habits;
+  } catch { return []; }
 }
 
-const initialHabits = [
-  // Regular habits
-  { id:1,  name:"Медитация",            type:"regular", category:"Здоровье",    freq:"daily",  target:1,  unit:"",      done:0, color:0, streak:12 },
-  { id:2,  name:"Читать книгу",          type:"regular", category:"Развитие",    freq:"daily",  target:30, unit:"мин",   done:0, color:1, streak:5  },
-  { id:3,  name:"Пить воду",             type:"regular", category:"Здоровье",    freq:"daily",  target:8,  unit:"стак.", done:3, color:2, streak:20 },
-  { id:4,  name:"Прогулка",              type:"regular", category:"Здоровье",    freq:"daily",  target:1,  unit:"",      done:0, color:3, streak:3  },
-  { id:5,  name:"Журнал благодарности",  type:"regular", category:"Развитие",    freq:"weekly", target:3,  unit:"раза",  done:1, color:4, streak:2  },
-  // Quit habits
-  { id:6,  name:"Не Instagram",          type:"quit",    category:"Цифровой детокс", freq:"daily", target:1, unit:"", done:0, color:5, streak:7  },
-  { id:7,  name:"Не листать TikTok",     type:"quit",    category:"Цифровой детокс", freq:"daily", target:1, unit:"", done:0, color:6, streak:2  },
-  // Project habits
-  { id:8,  name:"Публикация в LinkedIn", type:"project", category:"Поиск работы", freq:"weekly", target:1, unit:"пост",    done:0, color:1, streak:1  },
-  { id:9,  name:"Проверить вакансии",    type:"project", category:"Поиск работы", freq:"daily",  target:1, unit:"",        done:0, color:2, streak:4  },
-  { id:10, name:"Откликнуться",          type:"project", category:"Поиск работы", freq:"daily",  target:5, unit:"вакансий",done:2, color:3, streak:4  },
-];
+function saveHabits(habits) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(habits));
+    localStorage.setItem(DATE_KEY, todayKey);
+  } catch {}
+}
 
-// attach mock history
-const habitsWithHistory = initialHabits.map(h => ({
-  ...h, history: genHistory(h.id, h.streak)
-}));
+function calcStreak(history) {
+  let streak = 0;
+  const base = new Date(today);
+  for (let i = 0; i < 365; i++) {
+    const d = new Date(base); d.setDate(d.getDate() - i);
+    const k = d.toISOString().slice(0,10);
+    if (history[k]) streak++;
+    else if (i > 0) break;
+  }
+  return streak;
+}
 
 const freqLabel = { daily:"каждый день", weekly:"еженедельно", custom:"несколько раз" };
 const DAYS_SHORT = ["ПН","ВТ","СР","ЧТ","ПТ","СБ","ВС"];
@@ -657,18 +660,30 @@ function InsightCard({ habits, period }) {
 
 // ── APP ───────────────────────────────────────────────────────────────────────
 export default function App() {
-  const [habits, setHabits]     = useState(habitsWithHistory);
+  const [habits, setHabits]     = useState(loadHabits);
   const [showAdd, setShowAdd]   = useState(false);
   const [tab, setTab]           = useState("today");
   const [period, setPeriod]     = useState("week"); // "week" | "month"
 
-  const toggle    = id => setHabits(h=>h.map(x=>x.id===id
-    ? {...x, done:x.done>0?0:1, history:{...x.history,[todayKey]:!x.history[todayKey]}} : x));
-  const increment = id => setHabits(h=>h.map(x=>x.id===id
-    ? {...x, done:Math.min(x.target,x.done+1)} : x));
-  const addHabit  = h  => setHabits(p=>[...p,{...h,id:Date.now(),done:0,streak:0,
-    history:genHistory(Date.now(),0)}]);
-  const delHabit  = id => setHabits(h=>h.filter(x=>x.id!==id));
+  useEffect(() => { saveHabits(habits); }, [habits]);
+
+  const toggle = id => setHabits(h => h.map(x => {
+    if (x.id !== id) return x;
+    const nowDone = !x.history[todayKey];
+    const newHistory = { ...x.history, [todayKey]: nowDone };
+    return { ...x, done: nowDone ? 1 : 0, history: newHistory, streak: calcStreak(newHistory) };
+  }));
+
+  const increment = id => setHabits(h => h.map(x => {
+    if (x.id !== id) return x;
+    const newDone = Math.min(x.target, x.done + 1);
+    const completed = newDone >= x.target;
+    const newHistory = completed ? { ...x.history, [todayKey]: true } : x.history;
+    return { ...x, done: newDone, history: newHistory, streak: calcStreak(newHistory) };
+  }));
+
+  const addHabit  = h  => setHabits(p => [...p, { ...h, id: Date.now(), done: 0, streak: 0, history: {} }]);
+  const delHabit  = id => setHabits(h => h.filter(x => x.id !== id));
 
   const regular = habits.filter(h=>h.type==="regular");
   const quit    = habits.filter(h=>h.type==="quit");
