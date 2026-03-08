@@ -82,7 +82,11 @@ function Sheet({ onClose, children }) {
         padding:"28px 24px 52px", width:"100%", maxWidth:480,
         boxShadow:"0 -8px 40px rgba(0,0,0,0.1)", maxHeight:"90vh", overflowY:"auto"
       }}>
-        <div style={{width:40,height:4,borderRadius:2,background:"#e8e8e8",margin:"0 auto 24px"}}/>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:24}}>
+          <div style={{width:40,height:4,borderRadius:2,background:"#e8e8e8"}}/>
+          <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",
+            fontSize:20,color:"#ccc",lineHeight:1,padding:"0 4px"}}>✕</button>
+        </div>
         {children}
       </div>
     </div>
@@ -91,23 +95,26 @@ function Sheet({ onClose, children }) {
 
 // ── ADD SHEET ─────────────────────────────────────────────────────────────────
 function AddSheet({ onClose, onAdd, existingCategories }) {
-  const [name, setName]      = useState("");
-  const [type, setType]      = useState("regular");
-  const [freq, setFreq]      = useState("daily");
-  const [target, setTarget]  = useState(1);
-  const [unit, setUnit]      = useState("");
-  const [category, setCat]   = useState("");
-  const [newCat, setNewCat]  = useState("");
-  const [colorIdx, setColor] = useState(0);
+  const [name, setName]          = useState("");
+  const [type, setType]          = useState("regular");
+  const [freq, setFreq]          = useState("daily");
+  const [target, setTarget]      = useState(1);
+  const [unit, setUnit]          = useState("");
+  const [category, setCat]       = useState("");
+  const [newCat, setNewCat]      = useState("");
+  const [projectName, setProjName] = useState("");
+  const [colorIdx, setColor]     = useState(0);
 
   const cats = [...new Set(existingCategories)];
-  const finalCat = category === "__new__" ? newCat : category;
-  const accent = COLORS[colorIdx % COLORS.length].bg;
+  const isProject  = type === "project";
   const isReminder = type === "reminder";
   const isQuit     = type === "quit";
+  const finalCat   = isProject ? (projectName.trim() || "Project") : (category === "__new__" ? newCat : category);
+  const accent = COLORS[colorIdx % COLORS.length].bg;
 
   const submit = () => {
     if (!name.trim()) return;
+    if (isProject && !projectName.trim()) return;
     onAdd({ name, type, freq, target: Number(target), unit, category: finalCat || "General", color: colorIdx });
     onClose();
   };
@@ -142,27 +149,37 @@ function AddSheet({ onClose, onAdd, existingCategories }) {
         placeholder={isQuit ? "Don't scroll Instagram..." : isReminder ? "To sing, call mom..." : "habit name..."}
         autoFocus style={inputSt}/>
 
-      {/* Category */}
-      <p style={sectionLabel}>Category</p>
-      <div style={{display:"flex",gap:8,marginBottom:8,flexWrap:"wrap"}}>
-        {cats.map(c=>(
-          <button key={c} onClick={()=>setCat(c)} style={{
-            padding:"7px 14px", borderRadius:20,
-            background: category===c ? accent : "#f2f2f2",
-            border:"none", color: category===c?"#1a1a1a":"#999",
-            fontSize:12, fontFamily:"'Nunito',sans-serif", fontWeight:700, cursor:"pointer"
-          }}>{c}</button>
-        ))}
-        <button onClick={()=>setCat("__new__")} style={{
-          padding:"7px 14px", borderRadius:20,
-          background: category==="__new__" ? accent : "#f2f2f2",
-          border:"none", color: category==="__new__"?"#1a1a1a":"#999",
-          fontSize:12, fontFamily:"'Nunito',sans-serif", fontWeight:700, cursor:"pointer"
-        }}>+ New</button>
-      </div>
-      {category==="__new__" && (
-        <input value={newCat} onChange={e=>setNewCat(e.target.value)}
-          placeholder="category name..." style={{...inputSt, marginBottom:16}}/>
+      {/* Project name OR Category */}
+      {isProject ? (
+        <>
+          <p style={sectionLabel}>Project name</p>
+          <input value={projectName} onChange={e=>setProjName(e.target.value)}
+            placeholder="e.g. Job search, Side project..." style={inputSt}/>
+        </>
+      ) : (
+        <>
+          <p style={sectionLabel}>Category</p>
+          <div style={{display:"flex",gap:8,marginBottom:8,flexWrap:"wrap"}}>
+            {cats.map(c=>(
+              <button key={c} onClick={()=>setCat(c)} style={{
+                padding:"7px 14px", borderRadius:20,
+                background: category===c ? accent : "#f2f2f2",
+                border:"none", color: category===c?"#1a1a1a":"#999",
+                fontSize:12, fontFamily:"'Nunito',sans-serif", fontWeight:700, cursor:"pointer"
+              }}>{c}</button>
+            ))}
+            <button onClick={()=>setCat("__new__")} style={{
+              padding:"7px 14px", borderRadius:20,
+              background: category==="__new__" ? accent : "#f2f2f2",
+              border:"none", color: category==="__new__"?"#1a1a1a":"#999",
+              fontSize:12, fontFamily:"'Nunito',sans-serif", fontWeight:700, cursor:"pointer"
+            }}>+ New</button>
+          </div>
+          {category==="__new__" && (
+            <input value={newCat} onChange={e=>setNewCat(e.target.value)}
+              placeholder="category name..." style={{...inputSt, marginBottom:16}}/>
+          )}
+        </>
       )}
 
       {/* Color */}
@@ -210,14 +227,25 @@ function AddSheet({ onClose, onAdd, existingCategories }) {
 }
 
 // ── EDIT SHEET ────────────────────────────────────────────────────────────────
-function EditSheet({ habit, onClose, onEdit }) {
+function EditSheet({ habit, onClose, onEdit, existingCategories }) {
   const [name, setName]      = useState(habit.name);
+  const [type, setType]      = useState(habit.type);
+  const [freq, setFreq]      = useState(habit.freq || "daily");
+  const [target, setTarget]  = useState(habit.target || 1);
+  const [unit, setUnit]      = useState(habit.unit || "");
+  const [category, setCat]   = useState(habit.category || "");
+  const [newCat, setNewCat]  = useState("");
   const [colorIdx, setColor] = useState(habit.color);
+
+  const cats = [...new Set(existingCategories)];
+  const isReminder = type === "reminder";
+  const isQuit     = type === "quit";
+  const finalCat   = category === "__new__" ? newCat : category;
   const accent = COLORS[colorIdx % COLORS.length].bg;
 
   const submit = () => {
     if (!name.trim()) return;
-    onEdit(habit.id, { name, color: colorIdx });
+    onEdit(habit.id, { name, type, freq, target: Number(target), unit, category: finalCat || habit.category, color: colorIdx });
     onClose();
   };
 
@@ -227,12 +255,51 @@ function EditSheet({ habit, onClose, onEdit }) {
         Edit habit
       </p>
 
-      <p style={sectionLabel}>Name</p>
-      <input value={name} onChange={e=>setName(e.target.value)}
-        autoFocus style={inputSt}/>
+      {/* Type */}
+      <p style={sectionLabel}>Type</p>
+      <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
+        {[
+          ["regular","✦ Build"],["quit","✕ Quit"],["project","◈ Project"],["reminder","🔔 Reminder"],
+        ].map(([v,l]) => (
+          <button key={v} onClick={()=>setType(v)} style={{
+            padding:"8px 14px", borderRadius:20,
+            background: type===v ? "#1a1a1a" : "#f2f2f2",
+            border:"none", color: type===v?"#fff":"#999",
+            fontSize:13, fontFamily:"'Nunito',sans-serif", fontWeight:700, cursor:"pointer"
+          }}>{l}</button>
+        ))}
+      </div>
 
+      {/* Name */}
+      <p style={sectionLabel}>Name</p>
+      <input value={name} onChange={e=>setName(e.target.value)} autoFocus style={inputSt}/>
+
+      {/* Category */}
+      <p style={sectionLabel}>Category</p>
+      <div style={{display:"flex",gap:8,marginBottom:8,flexWrap:"wrap"}}>
+        {cats.map(c=>(
+          <button key={c} onClick={()=>setCat(c)} style={{
+            padding:"7px 14px", borderRadius:20,
+            background: category===c ? accent : "#f2f2f2",
+            border:"none", color: category===c?"#1a1a1a":"#999",
+            fontSize:12, fontFamily:"'Nunito',sans-serif", fontWeight:700, cursor:"pointer"
+          }}>{c}</button>
+        ))}
+        <button onClick={()=>setCat("__new__")} style={{
+          padding:"7px 14px", borderRadius:20,
+          background: category==="__new__" ? accent : "#f2f2f2",
+          border:"none", color: category==="__new__"?"#1a1a1a":"#999",
+          fontSize:12, fontFamily:"'Nunito',sans-serif", fontWeight:700, cursor:"pointer"
+        }}>+ New</button>
+      </div>
+      {category==="__new__" && (
+        <input value={newCat} onChange={e=>setNewCat(e.target.value)}
+          placeholder="category name..." style={{...inputSt, marginBottom:16}}/>
+      )}
+
+      {/* Color */}
       <p style={sectionLabel}>Color</p>
-      <div style={{display:"flex",gap:8,marginBottom:24}}>
+      <div style={{display:"flex",gap:8,marginBottom:16}}>
         {COLORS.map((c,i)=>(
           <div key={i} onClick={()=>setColor(i)} style={{
             width:28,height:28,borderRadius:"50%",background:c.bg,cursor:"pointer",
@@ -242,8 +309,31 @@ function EditSheet({ habit, onClose, onEdit }) {
         ))}
       </div>
 
+      {/* Frequency (not for quit/reminder) */}
+      {!isQuit && !isReminder && (
+        <>
+          <p style={sectionLabel}>Frequency</p>
+          <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
+            {[["daily","every day"],["weekly","weekly"],["custom","several times"]].map(([v,l])=>(
+              <button key={v} onClick={()=>setFreq(v)} style={{
+                padding:"8px 14px", borderRadius:20,
+                background: freq===v ? accent : "#f2f2f2",
+                border:"none", color: freq===v?"#1a1a1a":"#999",
+                fontSize:13, fontFamily:"'Nunito',sans-serif", fontWeight:700, cursor:"pointer"
+              }}>{l}</button>
+            ))}
+          </div>
+          <div style={{display:"flex",gap:12,marginBottom:16}}>
+            <input type="number" min={1} value={target} onChange={e=>setTarget(e.target.value)}
+              style={{...inputSt,flex:1,marginBottom:0}}/>
+            <input value={unit} onChange={e=>setUnit(e.target.value)} placeholder="min / pcs / km"
+              style={{...inputSt,flex:2,marginBottom:0}}/>
+          </div>
+        </>
+      )}
+
       <button onClick={submit} style={{
-        width:"100%",padding:"16px",borderRadius:16,
+        width:"100%",padding:"16px",borderRadius:16,marginTop:8,
         background:accent,border:"none",cursor:"pointer",
         fontSize:16,fontFamily:"'Nunito',sans-serif",fontWeight:800,color:"#1a1a1a"
       }}>Save</button>
@@ -691,6 +781,9 @@ export default function App() {
   const [editing, setEditing]     = useState(null); // habit object being edited
   const [tab, setTab]             = useState("today");
   const [period, setPeriod]       = useState("week");
+  const [collapsed, setCollapsed] = useState({});
+
+  const toggleSection = key => setCollapsed(p => ({...p, [key]: !p[key]}));
 
   useEffect(() => { saveHabits(habits); }, [habits]);
 
@@ -864,46 +957,28 @@ export default function App() {
             {/* TODAY */}
             {tab==="today" && (
               <>
-                {regular.length>0 && (
-                  <div style={{marginBottom:6}}>
-                    <p style={{...sectionLabel,marginBottom:8}}>Habits</p>
-                    {regular.map((h,i)=>(
-                      <div key={h.id} className="card" style={{animationDelay:`${i*0.04}s`}}>
-                        <HabitCard habit={h} onToggle={toggle} onIncrement={increment} onDecrement={decrement}/>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {quit.length>0 && (
-                  <div style={{marginBottom:6}}>
-                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-                      <p style={{...sectionLabel,marginBottom:0}}>Quit</p>
-                      <span style={{fontSize:10,fontFamily:"'Nunito',sans-serif",fontWeight:800,
-                        color:"#FF6B6B",background:"#FF6B6B22",padding:"2px 8px",borderRadius:6}}>
-                        every day without a slip
-                      </span>
-                    </div>
-                    {quit.map((h,i)=>(
-                      <div key={h.id} className="card" style={{animationDelay:`${i*0.04}s`}}>
-                        <HabitCard habit={h} onToggle={toggle} onIncrement={increment} onDecrement={decrement}/>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {project.length>0 && (() => {
-                  const projCats = [...new Set(project.map(h=>h.category))];
-                  return projCats.map(cat=>{
-                    const catHabits = project.filter(h=>h.category===cat);
-                    const catColor = COLORS[catHabits[0].color%COLORS.length];
+                {/* Regular habits grouped by category — collapsible */}
+                {regular.length>0 && (() => {
+                  const cats = [...new Set(regular.map(h => h.category || "Habits"))];
+                  return cats.map(cat => {
+                    const catHabits = regular.filter(h => (h.category || "Habits") === cat);
+                    const key = `reg-${cat}`;
+                    const isCollapsed = collapsed[key];
                     return (
                       <div key={cat} style={{marginBottom:6}}>
-                        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-                          <div style={{width:8,height:8,borderRadius:"50%",background:catColor.bg}}/>
+                        <div onClick={()=>toggleSection(key)} style={{
+                          display:"flex",alignItems:"center",gap:8,marginBottom:8,
+                          cursor:"pointer",userSelect:"none"
+                        }}>
                           <p style={{...sectionLabel,marginBottom:0}}>{cat}</p>
+                          <span style={{fontSize:10,color:"#ccc",fontFamily:"'Nunito',sans-serif",fontWeight:700}}>
+                            {catHabits.length}
+                          </span>
+                          <span style={{marginLeft:"auto",color:"#ccc",fontSize:13,lineHeight:1}}>
+                            {isCollapsed ? "▸" : "▾"}
+                          </span>
                         </div>
-                        {catHabits.map((h,i)=>(
+                        {!isCollapsed && catHabits.map((h,i)=>(
                           <div key={h.id} className="card" style={{animationDelay:`${i*0.04}s`}}>
                             <HabitCard habit={h} onToggle={toggle} onIncrement={increment} onDecrement={decrement}/>
                           </div>
@@ -913,16 +988,90 @@ export default function App() {
                   });
                 })()}
 
-                {reminders.length>0 && (
-                  <div style={{marginBottom:6}}>
-                    <p style={{...sectionLabel,marginBottom:8}}>Reminders</p>
-                    {reminders.map((h,i)=>(
-                      <div key={h.id} className="card" style={{animationDelay:`${i*0.04}s`}}>
-                        <HabitCard habit={h} onToggle={toggle} onIncrement={increment} onDecrement={decrement}/>
+                {/* Quit habits — collapsible */}
+                {quit.length>0 && (() => {
+                  const key = "quit";
+                  const isCollapsed = collapsed[key];
+                  return (
+                    <div style={{marginBottom:6}}>
+                      <div onClick={()=>toggleSection(key)} style={{
+                        display:"flex",alignItems:"center",gap:8,marginBottom:8,
+                        cursor:"pointer",userSelect:"none"
+                      }}>
+                        <p style={{...sectionLabel,marginBottom:0}}>Quit</p>
+                        <span style={{fontSize:10,fontFamily:"'Nunito',sans-serif",fontWeight:800,
+                          color:"#FF6B6B",background:"#FF6B6B22",padding:"2px 8px",borderRadius:6}}>
+                          every day without a slip
+                        </span>
+                        <span style={{marginLeft:"auto",color:"#ccc",fontSize:13,lineHeight:1}}>
+                          {isCollapsed ? "▸" : "▾"}
+                        </span>
                       </div>
-                    ))}
-                  </div>
-                )}
+                      {!isCollapsed && quit.map((h,i)=>(
+                        <div key={h.id} className="card" style={{animationDelay:`${i*0.04}s`}}>
+                          <HabitCard habit={h} onToggle={toggle} onIncrement={increment} onDecrement={decrement}/>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+
+                {/* Projects grouped by project name — collapsible */}
+                {project.length>0 && (() => {
+                  const projCats = [...new Set(project.map(h=>h.category))];
+                  return projCats.map(cat=>{
+                    const catHabits = project.filter(h=>h.category===cat);
+                    const catColor = COLORS[catHabits[0].color%COLORS.length];
+                    const key = `proj-${cat}`;
+                    const isCollapsed = collapsed[key];
+                    return (
+                      <div key={cat} style={{marginBottom:6}}>
+                        <div onClick={()=>toggleSection(key)} style={{
+                          display:"flex",alignItems:"center",gap:8,marginBottom:8,
+                          cursor:"pointer",userSelect:"none"
+                        }}>
+                          <div style={{width:8,height:8,borderRadius:"50%",background:catColor.bg,flexShrink:0}}/>
+                          <p style={{...sectionLabel,marginBottom:0}}>{cat}</p>
+                          <span style={{marginLeft:"auto",color:"#ccc",fontSize:13,lineHeight:1}}>
+                            {isCollapsed ? "▸" : "▾"}
+                          </span>
+                        </div>
+                        {!isCollapsed && catHabits.map((h,i)=>(
+                          <div key={h.id} className="card" style={{animationDelay:`${i*0.04}s`}}>
+                            <HabitCard habit={h} onToggle={toggle} onIncrement={increment} onDecrement={decrement}/>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  });
+                })()}
+
+                {/* Reminders — collapsible */}
+                {reminders.length>0 && (() => {
+                  const key = "reminders";
+                  const isCollapsed = collapsed[key];
+                  return (
+                    <div style={{marginBottom:6}}>
+                      <div onClick={()=>toggleSection(key)} style={{
+                        display:"flex",alignItems:"center",gap:8,marginBottom:8,
+                        cursor:"pointer",userSelect:"none"
+                      }}>
+                        <p style={{...sectionLabel,marginBottom:0}}>Reminders</p>
+                        <span style={{fontSize:10,color:"#ccc",fontFamily:"'Nunito',sans-serif",fontWeight:700}}>
+                          {reminders.length}
+                        </span>
+                        <span style={{marginLeft:"auto",color:"#ccc",fontSize:13,lineHeight:1}}>
+                          {isCollapsed ? "▸" : "▾"}
+                        </span>
+                      </div>
+                      {!isCollapsed && reminders.map((h,i)=>(
+                        <div key={h.id} className="card" style={{animationDelay:`${i*0.04}s`}}>
+                          <HabitCard habit={h} onToggle={toggle} onIncrement={increment} onDecrement={decrement}/>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
 
                 {habits.length===0 && (
                   <div style={{textAlign:"center",marginTop:60}}>
@@ -1024,7 +1173,7 @@ export default function App() {
         <AddSheet onClose={()=>setShowAdd(false)} onAdd={addHabit} existingCategories={existingCats}/>
       )}
       {editing && (
-        <EditSheet habit={editing} onClose={()=>setEditing(null)} onEdit={editHabit}/>
+        <EditSheet habit={editing} onClose={()=>setEditing(null)} onEdit={editHabit} existingCategories={existingCats}/>
       )}
     </>
   );
